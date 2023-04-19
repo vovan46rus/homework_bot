@@ -39,7 +39,7 @@ def check_tokens():
         missing_tokens = [
             token for token in REQUIRED_TOKENS if globals()[token] is None
         ]
-        error_msg = f"Missing tokens: {', '.join(missing_tokens)}"
+        error_msg = f"Отсутствующие токены: {', '.join(missing_tokens)}"
         logging.critical(error_msg)
         raise ValueError(error_msg)
 
@@ -60,50 +60,45 @@ def send_message(bot, message):
 
 def get_api_answer(timestamp):
     """Создаёт запрос к эндпоинту API-сервиса."""
+    params = {'from_date': timestamp}
+    logging.info(f'Отправляем запрос к API: {ENDPOINT}')
     try:
-        response = requests.get(
-            url=ENDPOINT,
-            headers=HEADERS,
-            params={'from_date': timestamp}
+        homework_statuses = requests.get(
+            ENDPOINT, headers=HEADERS, params=params
         )
-    except requests.RequestException as error:
+    except requests.exceptions:
+        raise ConnectionError(f'Ошибка запроса к: {ENDPOINT}')
+    if homework_statuses.status_code != 200:
         raise ConnectionError(
-            f'Connection failed: {error}'
+            f'Ошибка подключения: {homework_statuses.status_code}'
         )
-
-    if response.status_code != HTTPStatus.OK:
-        raise exceptions.ApiResponseFailed(
-            f'Failed get answer from API. Status code = {response.status_code}'
-        )
-
     try:
-        response_json = response.json()
-    except json.JSONDecodeError as error:
-        logging.exception(f"Failed to decode JSON response: {error}")
-        raise ValueError(f"Failed to decode JSON response: {error}")
-
-    return response_json
+        response = homework_statuses.json()
+        return response
+    except Exception:
+        raise TypeError(
+            f'Ошибка преобразования полученного ответа json: {type(response)}'
+        )
 
 
 def check_response(response):
     """Проверяет ответ от эндпоинта."""
     if not isinstance(response, dict):
-        raise TypeError(
-            f'Response is {type(response)}, but dict expected.'
-        )
-
-    if 'homeworks' not in response:
-        raise KeyError(
-            'homeworks not in the response'
-        )
-
-    homeworks = response.get('homeworks')
-
-    if not isinstance(homeworks, list):
-        raise TypeError(
-            f'Response is {type(homeworks)}, but list expected.'
-        )
-
+        logger.error('Произошла ошибка. Ответ не является словарем.')
+        raise TypeError('Произошла ошибка. Ответ не является словарем.')
+    try:
+        homeworks = response['homeworks']
+    except KeyError:
+        logger.error('Не возможно получить необходимое содержимое.')
+        raise KeyError('Не возможно получить необходимое содержимое.')
+    if not isinstance(response['homeworks'], list):
+        logger.error('Произошла ошибка. Ответ не является списком.')
+        raise TypeError('Произошла ошибка. Ответ не является списком.')
+    try:
+        homeworks[0]
+    except IndexError:
+        logger.error('Список домашних работ пуст.')
+        raise IndexError('Список домашних работ пуст.')
     return homeworks
 
 
