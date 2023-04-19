@@ -1,15 +1,12 @@
-import json
 import logging
 import os
 import sys
 import time
-from http import HTTPStatus
 
 import requests
 import telegram
 from dotenv import load_dotenv
 
-import exceptions
 from exceptions import ParseStatusError
 
 load_dotenv()
