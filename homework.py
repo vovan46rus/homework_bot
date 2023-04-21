@@ -1,7 +1,9 @@
+import json
 import logging
 import os
 import sys
 import time
+from http import HTTPStatus
 
 import requests
 import telegram
@@ -24,7 +26,7 @@ HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
-    'rejected': 'Работа проверена: у ревьюера есть замечания.'
+    'rejected': 'Работа проверена: у ревьюера есть замечания.',
 }
 
 REQUIRED_TOKENS = ('PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID')
@@ -48,11 +50,9 @@ def send_message(bot, message):
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
         logger.debug(
             f'Сообщение в Telegram отправлено: {message}')
-        return True
     except telegram.error.TelegramError as error:
         logger.error(
             f'Сообщение в Telegram не отправлено: {error}')
-        return False
 
 
 def get_api_answer(timestamp):
@@ -63,18 +63,19 @@ def get_api_answer(timestamp):
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=params
         )
-    except requests.exceptions:
-        raise ConnectionError(f'Ошибка запроса к: {ENDPOINT}')
-    if homework_statuses.status_code != 200:
+    except requests.RequestException as error:
+        raise ConnectionError(f'Ошибка запроса к: {ENDPOINT}, {error}')
+    if homework_statuses.status_code != HTTPStatus.OK:
         raise ConnectionError(
             f'Ошибка подключения: {homework_statuses.status_code}'
         )
     try:
         response = homework_statuses.json()
         return response
-    except Exception:
+    except json.JSONDecodeError as error:
         raise TypeError(
-            f'Ошибка преобразования полученного ответа json: {type(response)}'
+            f'Ошибка преобразования полученного ответа json:'
+            f'{type(response)}, {error}'
         )
 
 
@@ -85,27 +86,22 @@ def check_response(response):
         raise TypeError('Произошла ошибка. Ответ не является словарем.')
     try:
         homeworks = response['homeworks']
-    except KeyError:
-        logger.error('Не возможно получить необходимое содержимое.')
-        raise KeyError('Не возможно получить необходимое содержимое.')
+
+    except KeyError as error:
+        logger.error(f'Невозможно получить необходимое содержимое: {error}')
+        raise KeyError(f'Невозможно получить необходимое содержимое: {error}')
     if not isinstance(response['homeworks'], list):
-        logger.error('Произошла ошибка. Ответ не является списком.')
-        raise TypeError('Произошла ошибка. Ответ не является списком.')
-    try:
-        homeworks[0]
-    except IndexError:
-        logger.error('Список домашних работ пуст.')
-        raise IndexError('Список домашних работ пуст.')
+        logger.error('По ключу "homeworks" не получен список')
+        raise TypeError('По ключу "homeworks" не получен список')
     return homeworks
 
 
 def parse_status(homework):
     """Получение информации о домашней работе."""
+    homework_name = homework.get('homework_name')
     if not homework.get('homework_name'):
         logging.warning('Отсутствует имя домашней работы')
         raise KeyError('Отсутствует имя домашней работы')
-
-    homework_name = homework.get('homework_name')
 
     status = homework.get('status')
     if 'status' not in homework:
@@ -113,11 +109,11 @@ def parse_status(homework):
         logging.error(message)
         raise ParseStatusError(message)
 
-    verdict = HOMEWORK_VERDICTS.get(status)
     if status not in HOMEWORK_VERDICTS:
-        message = 'Недокументированный статус домашщней работы'
+        message = 'Статус домашней работы не определен.'
         logging.error(message)
         raise KeyError(message)
+    verdict = HOMEWORK_VERDICTS.get(status)
 
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
