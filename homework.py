@@ -14,9 +14,9 @@ from exceptions import ParseStatusError
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-PRACTICUM_TOKEN = os.getenv('PRACTOKEN')
-TELEGRAM_TOKEN = os.getenv('TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELECHAT')
+PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
