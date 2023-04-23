@@ -9,7 +9,7 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-from exceptions import ParseStatusError
+from exceptions import MessageError, ParseStatusError
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -53,6 +53,7 @@ def send_message(bot, message):
     except telegram.error.TelegramError as error:
         logger.error(
             f'Сообщение в Telegram не отправлено: {error}')
+        raise MessageError(message)
 
 
 def get_api_answer(timestamp):
@@ -90,7 +91,7 @@ def check_response(response):
     except KeyError as error:
         logger.error(f'Невозможно получить необходимое содержимое: {error}')
         raise KeyError(f'Невозможно получить необходимое содержимое: {error}')
-    if not isinstance(response['homeworks'], list):
+    if not isinstance(homeworks, list):
         logger.error('По ключу "homeworks" не получен список')
         raise TypeError('По ключу "homeworks" не получен список')
     return homeworks
@@ -140,9 +141,9 @@ def main():
         except Exception as error:
             message = f'Program failed: {error}'
             logging.exception(message)
+            send_message(bot, message)
 
             if last_message != message:
-                send_message(bot, message)
                 last_message = message
         finally:
             time.sleep(RETRY_PERIOD)
